@@ -9,15 +9,28 @@ module Mutant
 
         children :send, :arguments, :body
 
+        RECEIVER_PROMOTING_METHODS = %i[tap then yield_self].to_set.freeze
+
       private
 
         def dispatch
           emit_singletons
           emit(send) unless n_lambda?(send)
+          emit_receiver_promotion
           emit_send_mutations(&method(:valid_send_mutation?))
           emit_arguments_mutations
 
           mutate_body
+        end
+
+        def emit_receiver_promotion
+          return unless n_send?(send)
+
+          send_meta = AST::Meta::Send.new(node: send)
+          return unless RECEIVER_PROMOTING_METHODS.include?(send_meta.selector)
+          return unless send_meta.receiver
+
+          emit(send_meta.receiver)
         end
 
         def mutate_body

@@ -181,3 +181,112 @@ Mutant::Meta::Example.add :block do
   mutation 'loop { raise }'
   mutation 'loop'
 end
+
+# Receiver-promoting method blocks (tap, then, yield_self)
+Mutant::Meta::Example.add :block do
+  source 'obj.tap { |x| x.foo }'
+
+  singleton_mutations
+
+  # Promote receiver - tests if block side effects matter
+  mutation 'obj'
+
+  # Remove block
+  mutation 'obj.tap'
+
+  # Standard block mutations
+  mutation 'obj { |x| x.foo }'
+  mutation 'self.tap { |x| x.foo }'
+  mutation 'obj.tap { |x| }'
+  mutation 'obj.tap { |x| raise }'
+  mutation 'obj.tap { |x| nil }'
+  mutation 'obj.tap { |x| x }'
+  mutation 'obj.tap { |x| self.foo }'
+end
+
+Mutant::Meta::Example.add :block do
+  source 'obj.then { |x| transform(x) }'
+
+  singleton_mutations
+
+  # Promote receiver - tests if transformation is needed
+  mutation 'obj'
+
+  # Remove block
+  mutation 'obj.then'
+
+  # Standard block mutations
+  mutation 'obj { |x| transform(x) }'
+  mutation 'self.then { |x| transform(x) }'
+  mutation 'obj.then { |x| }'
+  mutation 'obj.then { |x| raise }'
+  mutation 'obj.then { |x| nil }'
+  mutation 'obj.then { |x| x }'
+  mutation 'obj.then { |x| transform }'
+  mutation 'obj.then { |x| transform(nil) }'
+end
+
+Mutant::Meta::Example.add :block do
+  source 'obj.yield_self { |x| transform(x) }'
+
+  singleton_mutations
+
+  # Promote receiver - tests if transformation is needed
+  mutation 'obj'
+
+  # Remove block
+  mutation 'obj.yield_self'
+
+  # Standard block mutations
+  mutation 'obj { |x| transform(x) }'
+  mutation 'self.yield_self { |x| transform(x) }'
+  mutation 'obj.yield_self { |x| }'
+  mutation 'obj.yield_self { |x| raise }'
+  mutation 'obj.yield_self { |x| nil }'
+  mutation 'obj.yield_self { |x| x }'
+  mutation 'obj.yield_self { |x| transform }'
+  mutation 'obj.yield_self { |x| transform(nil) }'
+end
+
+# Receiver-promoting method WITHOUT a receiver - should NOT emit receiver promotion
+# This tests the `return unless send_meta.receiver` guard
+Mutant::Meta::Example.add :block do
+  source 'tap { |x| x.foo }'
+
+  singleton_mutations
+
+  # NO receiver promotion mutation here - there's no receiver to promote to!
+
+  # Remove block
+  mutation 'tap'
+
+  # Standard block mutations
+  mutation 'tap { |x| }'
+  mutation 'tap { |x| raise }'
+  mutation 'tap { |x| nil }'
+  mutation 'tap { |x| x }'
+  mutation 'tap { |x| self.foo }'
+end
+
+# Safe navigation (csend) with receiver-promoting method - should NOT emit receiver promotion
+# This tests the `return unless n_send?(send)` guard (csend is not send)
+Mutant::Meta::Example.add :block do
+  source 'obj&.tap { |x| x.foo }'
+
+  singleton_mutations
+
+  # NO receiver promotion mutation here - csend is not a regular send!
+
+  # Remove block
+  mutation 'obj&.tap'
+
+  # Standard block mutations
+  mutation 'obj.tap { |x| x.foo }'   # csend to send
+  mutation 'obj { |x| x.foo }'       # emit(send) - removes method call
+  # Note: no self&.tap mutation - csend doesn't generate receiver-to-self mutations
+  mutation 'obj&.tap { |x| }'
+  mutation 'obj&.tap { |x| raise }'
+  mutation 'obj&.tap { |x| nil }'
+  mutation 'obj&.tap { |x| x }'
+  mutation 'obj&.tap { |x| self.foo }'
+end
